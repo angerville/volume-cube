@@ -157,10 +157,14 @@ function renderSteps(){
 /* 어떤 .cube3d 든 부모 scene-box를 드래그하면 회전한다 */
 function enableDrag(sceneEl, cubeEl, state){
   if(state.scale==null) state.scale=1;
+  const BASE_P=1300; // 기준 원근 거리(px)
   let dragging=false, lastX=0, lastY=0, pinchDist=0;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const apply=()=>{ cubeEl.style.transform =
-      `rotateX(${state.rx}deg) rotateY(${state.ry}deg) scale(${state.scale})`; };
+  const apply=()=>{
+    cubeEl.style.transform = `rotateX(${state.rx}deg) rotateY(${state.ry}deg) scale(${state.scale})`;
+    // 확대 비율만큼 원근 거리도 함께 키워, 정육면체가 길쭉하게 왜곡되지 않도록 한다
+    sceneEl.style.perspective = (BASE_P*state.scale)+"px";
+  };
   apply();
   const pt=e=> e.touches? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY};
   const dist=t=>Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
