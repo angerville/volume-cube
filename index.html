@@ -308,13 +308,13 @@ function setPhase(p){
   });
   let cube, viewRx;
   if(p===0){
-    // 가로 한 줄: 가로 100칸, 세로/높이 1칸 (납작한 막대)
-    cube=makeBar(320,28,28,100,1,1,"가로 100칸");
-    viewRx=-20;
+    // 가로 한 줄: 가로 100칸 × 높이1 × 세로1 (1cm³ 한 칸 = 6px)
+    cube=makeBar(6,100,1,1,"");
+    viewRx=-22;
   } else if(p===1){
-    // 한 층: 가로100 × 세로100 × 높이1 (바닥에 깔린 납작한 판 → 위에서 내려다봄)
-    cube=makeBar(300,16,300,100,1,100,"가로 100 × 세로 100");
-    viewRx=-62;
+    // 한 층: 가로100 × 세로100 × 높이1 (1cm³ 한 칸 = 3px, 바닥 판을 위에서 내려다봄)
+    cube=makeBar(3,100,1,100,"가로 100 × 세로 100");
+    viewRx=-60;
   } else {
     // 1m³: 100×100×100
     cube=makeCube(300,100,"1m³");
@@ -339,26 +339,28 @@ function addAxisTag(scene, text, pos){
   if(pos==="right"){ t.style.right="9%"; t.style.top="40%"; t.style.background="rgba(95,224,138,.95)"; }
   scene.appendChild(t);
 }
-/* 직육면체: 픽셀 w,h,d + 격자칸 nx,ny,nz */
-function makeBar(w,h,d,nx,ny,nz,label){
+/* 직육면체: unit=1cm³ 한 칸의 픽셀 크기, nx·ny·nz=각 방향 칸 수.
+   모든 면의 격자 칸을 unit×unit 정사각형으로 그리고, 각 면을 중앙 정렬해 빈틈 없이 맞춘다. */
+function makeBar(unit,nx,ny,nz,label){
+  const w=nx*unit, h=ny*unit, d=nz*unit;
   const wrap=document.createElement("div"); wrap.className="cube3d";
-  wrap.style.width=w+"px"; wrap.style.height=h+"px";
-  const mk=(ww,hh,t,gx,gy,top)=>{
+  wrap.style.width=w+"px"; wrap.style.height=h+"px"; wrap.style.position="relative";
+  const mk=(ww,hh,t,isTop)=>{
     const el=document.createElement("div"); el.className="face gridface";
-    el.style.width=ww+"px"; el.style.height=hh+"px"; el.style.transform=t;
-    el.style.backgroundSize=(ww/gx)+"px "+(hh/gy)+"px";
-    if(top&&label){ el.textContent=label; el.style.color="#3a1206"; el.style.fontSize="15px"; }
+    el.style.position="absolute"; el.style.left="50%"; el.style.top="50%";
+    el.style.width=ww+"px"; el.style.height=hh+"px";
+    el.style.marginLeft=(-ww/2)+"px"; el.style.marginTop=(-hh/2)+"px";
+    el.style.transform=t;
+    el.style.backgroundSize=unit+"px "+unit+"px";   // 모든 칸을 정사각형으로
+    if(isTop&&label){ el.textContent=label; el.style.color="#3a1206"; el.style.fontSize="15px"; }
     return el;
   };
-  // front/back (w×h, nx×ny)
-  wrap.appendChild(mk(w,h,`translateZ(${d/2}px)`,nx,ny));
-  wrap.appendChild(mk(w,h,`rotateY(180deg) translateZ(${d/2}px)`,nx,ny));
-  // right/left (d×h, nz×ny)
-  wrap.appendChild(mk(d,h,`rotateY(90deg) translateZ(${w/2}px) translateX(${(w-d)/2}px)`,Math.max(nz,1),ny));
-  wrap.appendChild(mk(d,h,`rotateY(-90deg) translateZ(${w/2}px) translateX(${-(w-d)/2}px)`,Math.max(nz,1),ny));
-  // top/bottom (w×d, nx×nz)
-  wrap.appendChild(mk(w,d,`rotateX(90deg) translateZ(${h/2}px) translateY(${(h-d)/2}px)`,nx,Math.max(nz,1),true));
-  wrap.appendChild(mk(w,d,`rotateX(-90deg) translateZ(${h/2}px) translateY(${-(h-d)/2}px)`,nx,Math.max(nz,1)));
+  wrap.appendChild(mk(w,h,`translateZ(${d/2}px)`));                 // 앞
+  wrap.appendChild(mk(w,h,`rotateY(180deg) translateZ(${d/2}px)`)); // 뒤
+  wrap.appendChild(mk(d,h,`rotateY(90deg) translateZ(${w/2}px)`));  // 오른쪽
+  wrap.appendChild(mk(d,h,`rotateY(-90deg) translateZ(${w/2}px)`)); // 왼쪽
+  wrap.appendChild(mk(w,d,`rotateX(90deg) translateZ(${h/2}px)`,true)); // 위
+  wrap.appendChild(mk(w,d,`rotateX(-90deg) translateZ(${h/2}px)`));     // 아래
   return wrap;
 }
 let countTimer=null;
