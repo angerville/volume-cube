@@ -157,13 +157,21 @@ function renderSteps(){
 /* 어떤 .cube3d 든 부모 scene-box를 드래그하면 회전한다 */
 function enableDrag(sceneEl, cubeEl, state){
   if(state.scale==null) state.scale=1;
-  const BASE_P=1300; // 기준 원근 거리(px)
+  // 확대/축소는 원근(3D) 바깥에서 순수 2D로 적용해야 정육면체가 왜곡되지 않는다.
+  // 구조: scene-box > zoom(2D 확대) > persp(원근) > cube3d(회전)
+  const persp=document.createElement("div");
+  persp.style.perspective="1300px";
+  const zoom=document.createElement("div");
+  zoom.style.transformOrigin="center center";
+  sceneEl.insertBefore(zoom, cubeEl);
+  zoom.appendChild(persp);
+  persp.appendChild(cubeEl);
+
   let dragging=false, lastX=0, lastY=0, pinchDist=0;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const apply=()=>{
-    cubeEl.style.transform = `rotateX(${state.rx}deg) rotateY(${state.ry}deg) scale(${state.scale})`;
-    // 확대 비율만큼 원근 거리도 함께 키워, 정육면체가 길쭉하게 왜곡되지 않도록 한다
-    sceneEl.style.perspective = (BASE_P*state.scale)+"px";
+    cubeEl.style.transform = `rotateX(${state.rx}deg) rotateY(${state.ry}deg)`; // 회전만
+    zoom.style.transform = `scale(${state.scale})`;                            // 확대는 2D로
   };
   apply();
   const pt=e=> e.touches? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY};
