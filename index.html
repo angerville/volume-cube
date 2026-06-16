@@ -156,22 +156,38 @@ function renderSteps(){
 /* ===================== 공통: 드래그로 회전 ===================== */
 /* 어떤 .cube3d 든 부모 scene-box를 드래그하면 회전한다 */
 function enableDrag(sceneEl, cubeEl, state){
-  let dragging=false, lastX=0, lastY=0;
+  if(state.scale==null) state.scale=1;
+  let dragging=false, lastX=0, lastY=0, pinchDist=0;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const apply=()=>{ cubeEl.style.transform =
-      `rotateX(${state.rx}deg) rotateY(${state.ry}deg)` + (state.scale?` scale(${state.scale})`:""); };
+      `rotateX(${state.rx}deg) rotateY(${state.ry}deg) scale(${state.scale})`; };
   apply();
-  const down=e=>{ dragging=true; const p=pt(e); lastX=p.x; lastY=p.y; };
+  const pt=e=> e.touches? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY};
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+
+  const down=e=>{
+    if(e.touches && e.touches.length===2){ pinchDist=dist(e.touches); dragging=false; return; }
+    dragging=true; const p=pt(e); lastX=p.x; lastY=p.y;
+  };
   const move=e=>{
+    // 두 손가락 → 확대/축소(핀치 줌)
+    if(e.touches && e.touches.length===2){
+      const d=dist(e.touches);
+      if(pinchDist){ state.scale=clamp(state.scale*(d/pinchDist),0.5,6); apply(); }
+      pinchDist=d; e.preventDefault(); return;
+    }
     if(!dragging) return;
     const p=pt(e); const dx=p.x-lastX, dy=p.y-lastY; lastX=p.x; lastY=p.y;
-    state.ry += dx*0.5; state.rx -= dy*0.5;
-    state.rx = Math.max(-89, Math.min(89, state.rx));
+    state.ry += dx*0.5; state.rx = clamp(state.rx - dy*0.5, -89, 89);
     apply(); e.preventDefault();
   };
-  const up=()=>{ dragging=false; };
-  const pt=e=> e.touches? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY};
+  const up=e=>{ dragging=false; if(!e.touches || e.touches.length<2) pinchDist=0; };
+  // PC 마우스 휠 → 확대/축소
+  const wheel=e=>{ e.preventDefault(); state.scale=clamp(state.scale*(e.deltaY<0?1.1:0.9),0.5,6); apply(); };
+
   sceneEl.addEventListener("mousedown",down); window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
   sceneEl.addEventListener("touchstart",down,{passive:false}); sceneEl.addEventListener("touchmove",move,{passive:false}); window.addEventListener("touchend",up);
+  sceneEl.addEventListener("wheel",wheel,{passive:false});
   return apply;
 }
 
@@ -205,7 +221,7 @@ function makeCube(size, divisions, label){
 function sceneShell(id, floatLabel){
   return `<div class="scene-box" id="${id}">
       ${floatLabel?`<div class="label-float">${floatLabel}</div>`:""}
-      <div class="hint-drag">👆 끌어서 돌리기</div>
+      <div class="hint-drag">👆 끌어 돌리기 · 🔍 휠/두 손가락 확대</div>
     </div>`;
 }
 
@@ -278,23 +294,38 @@ function setPhase(p){
     const b=document.getElementById(id);
     b.className="btn"+(i===p?"":" ghost");
   });
-  let cube;
+  let cube, viewRx;
   if(p===0){
     // 가로 한 줄: 가로 100칸, 세로/높이 1칸 (납작한 막대)
     cube=makeBar(320,28,28,100,1,1,"가로 100칸");
+    viewRx=-20;
   } else if(p===1){
-    // 한 층: 가로100 세로100 높이1
-    cube=makeBar(300,300,26,100,100,1,"100 × 100");
+    // 한 층: 가로100 × 세로100 × 높이1 (바닥에 깔린 납작한 판 → 위에서 내려다봄)
+    cube=makeBar(300,16,300,100,1,100,"가로 100 × 세로 100");
+    viewRx=-62;
   } else {
     // 1m³: 100×100×100
     cube=makeCube(300,100,"1m³");
+    viewRx=-24;
   }
   scene.appendChild(cube);
   const lbl=document.createElement("div"); lbl.className="label-float"; lbl.textContent=phaseData[p].scaleNote; scene.appendChild(lbl);
-  const hint=document.createElement("div"); hint.className="hint-drag"; hint.textContent="👆 끌어서 돌리기"; scene.appendChild(hint);
-  enableDrag(scene,cube,{rx:p===1?-55:-24, ry:-32});
+  const hint=document.createElement("div"); hint.className="hint-drag"; hint.textContent="👆 끌어 돌리기 · 🔍 휠/두 손가락 확대"; scene.appendChild(hint);
+  // 가로·세로·높이를 한눈에 비교할 수 있는 축 라벨
+  addAxisTag(scene,"↔ 가로 100개","bottom");
+  if(p>=1) addAxisTag(scene,"↕ 세로 100개","left");
+  if(p>=2) addAxisTag(scene,"⬆ 높이 100개","right");
+  enableDrag(scene,cube,{rx:viewRx, ry:p===1?-26:-32});
   animateCount("buildCount", phaseData[p].count);
   document.getElementById("buildSub").textContent=phaseData[p].sub;
+}
+/* 무대 가장자리에 가로/세로/높이 방향 라벨을 붙인다 */
+function addAxisTag(scene, text, pos){
+  const t=document.createElement("span"); t.className="edge-tag"; t.textContent=text;
+  if(pos==="bottom"){ t.style.left="50%"; t.style.bottom="13%"; t.style.transform="translateX(-50%)"; }
+  if(pos==="left"){ t.style.left="9%"; t.style.top="46%"; t.style.transform="translateY(-50%) rotate(-90deg)"; t.style.background="rgba(255,211,78,.95)"; }
+  if(pos==="right"){ t.style.right="9%"; t.style.top="40%"; t.style.background="rgba(95,224,138,.95)"; }
+  scene.appendChild(t);
 }
 /* 직육면체: 픽셀 w,h,d + 격자칸 nx,ny,nz */
 function makeBar(w,h,d,nx,ny,nz,label){
@@ -343,7 +374,7 @@ function renderFull(){
       <span class="edge-tag" id="tagX">↔ 가로 100개</span>
       <span class="edge-tag" id="tagY">↕ 높이 100개</span>
       <span class="edge-tag" id="tagZ">↗ 세로 100개</span>
-      <div class="hint-drag">👆 끌어서 돌리기</div>
+      <div class="hint-drag">👆 끌어 돌리기 · 🔍 휠/두 손가락 확대</div>
     </div>
     <div class="counter">
       <div class="big">1,000,000</div>
