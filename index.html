@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>1cm³와 1m³ 체험하기</title>
+<style>
+  :root{
+    --bg:#0f1226; --panel:#1a1f3d; --accent:#ffd34e; --accent2:#4ec9ff;
+    --good:#5fe08a; --text:#eef1ff; --muted:#9aa3c7; --cube:#ff7a59;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;}
+  body{
+    font-family:"Pretendard","맑은 고딕","Malgun Gothic",system-ui,sans-serif;
+    background:radial-gradient(1200px 800px at 70% -10%, #232a55 0%, var(--bg) 60%);
+    color:var(--text); min-height:100vh; overflow-x:hidden;
+  }
+  header{text-align:center; padding:22px 16px 6px;}
+  header h1{margin:0; font-size:clamp(20px,4.5vw,34px); letter-spacing:-1px;}
+  header p{margin:8px 0 0; color:var(--muted); font-size:clamp(13px,2.6vw,16px);}
+  .wrap{max-width:1080px; margin:0 auto; padding:14px;}
+
+  /* 단계 칩 */
+  .steps{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:16px 0 6px;}
+  .step-chip{
+    background:var(--panel); border:2px solid transparent; border-radius:999px;
+    padding:10px 16px; font-size:14px; color:var(--muted); cursor:pointer;
+    transition:.2s; white-space:nowrap; user-select:none;
+  }
+  .step-chip.active{border-color:var(--accent); color:var(--text); box-shadow:0 0 0 4px rgba(255,211,78,.12);}
+  .step-chip.done{color:var(--good);}
+
+  .stage{
+    background:linear-gradient(180deg,#171c38,#11142b); border:1px solid #2a3160;
+    border-radius:20px; padding:20px; margin-top:14px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  .stage h2{margin:0 0 6px; font-size:clamp(18px,3.4vw,26px);}
+  .stage .lead{color:var(--muted); margin:0 0 16px; line-height:1.65; font-size:clamp(14px,2.6vw,16px);}
+
+  /* 3D 무대 */
+  .scene-box{
+    position:relative; height:min(56vh,440px); display:flex; align-items:center; justify-content:center;
+    perspective:1300px; overflow:hidden; border-radius:16px; touch-action:none; cursor:grab;
+    background:
+      radial-gradient(600px 300px at 50% 120%, rgba(78,201,255,.10), transparent),
+      repeating-linear-gradient(0deg,#0d1024 0 39px,#11152e 39px 40px),
+      repeating-linear-gradient(90deg,#0d1024 0 39px,#11152e 39px 40px);
+  }
+  .scene-box:active{cursor:grabbing;}
+  .cube3d{transform-style:preserve-3d; transition:transform .05s linear; position:relative;}
+  .face{position:absolute; display:flex; align-items:center; justify-content:center;
+    font-weight:700; color:#3a1206; backface-visibility:hidden;}
+  .gridface{
+    background-color:rgba(255,122,89,.9);
+    background-image:
+      linear-gradient(rgba(90,20,0,.55) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(90,20,0,.55) 1px,transparent 1px);
+  }
+  .label-float{
+    position:absolute; left:50%; top:12px; transform:translateX(-50%);
+    background:rgba(0,0,0,.5); padding:7px 14px; border-radius:999px; font-size:13px;
+    color:var(--text); backdrop-filter:blur(4px); pointer-events:none; text-align:center;
+  }
+  .hint-drag{
+    position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+    background:rgba(0,0,0,.45); padding:6px 12px; border-radius:999px; font-size:12px;
+    color:var(--muted); pointer-events:none;
+  }
+
+  .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center; margin-top:16px;}
+  button.btn{
+    border:none; cursor:pointer; background:var(--accent); color:#1a1505; font-weight:800;
+    padding:14px 20px; border-radius:14px; font-size:16px; transition:.12s; min-height:50px; touch-action:manipulation;
+  }
+  button.btn:active{transform:scale(.96);}
+  button.btn.ghost{background:transparent; color:var(--text); border:2px solid #39406f;}
+  button.btn.blue{background:var(--accent2); color:#04222e;}
+  button.btn:disabled{opacity:.4; cursor:not-allowed;}
+
+  .counter{text-align:center; margin:14px 0 0;}
+  .counter .big{font-size:clamp(30px,9vw,60px); font-weight:900; color:var(--accent); line-height:1.1;}
+  .counter .sub{color:var(--muted); font-size:14px; margin-top:4px;}
+  .progress-line{height:10px; background:#0e1228; border-radius:999px; overflow:hidden; margin-top:10px;}
+  .progress-line>div{height:100%; background:linear-gradient(90deg,var(--accent2),var(--accent)); width:0; transition:width .3s;}
+
+  .factbar{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:18px;}
+  .fact{background:#0e1228; border:1px solid #2a3160; border-radius:12px; padding:14px 16px; min-width:140px; text-align:center;}
+  .fact .n{font-size:22px; font-weight:800; color:var(--accent2);}
+  .fact .t{font-size:12px; color:var(--muted); margin-top:4px;}
+
+  .nav{display:flex; justify-content:space-between; margin-top:20px; gap:10px;}
+
+  .compare{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media(max-width:620px){.compare{grid-template-columns:1fr;}}
+  .ccard{background:#0e1228; border:1px solid #2a3160; border-radius:14px; padding:16px; text-align:center;}
+  .ccard .title{font-weight:800; font-size:17px; margin-bottom:8px;}
+  .swatch{height:90px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:800; margin-bottom:8px;}
+
+  .quiz-q{font-size:clamp(16px,3vw,20px); font-weight:700; margin-bottom:14px;}
+  .opts{display:grid; gap:12px;}
+  .opt{text-align:left; background:#0e1228; border:2px solid #2a3160; color:var(--text);
+    padding:16px 18px; border-radius:12px; cursor:pointer; font-size:16px; transition:.12s; min-height:54px;}
+  .opt:active{transform:scale(.99);}
+  .opt.correct{border-color:var(--good); background:rgba(95,224,138,.12);}
+  .opt.wrong{border-color:#ff6b6b; background:rgba(255,107,107,.12);}
+  .feedback{margin-top:14px; padding:14px 16px; border-radius:10px; font-size:15px; display:none; line-height:1.6;}
+  .feedback.show{display:block;}
+  .feedback.ok{background:rgba(95,224,138,.12); border:1px solid var(--good);}
+  .feedback.no{background:rgba(255,107,107,.12); border:1px solid #ff6b6b;}
+
+  .hint{color:var(--muted); font-size:13px; text-align:center; margin-top:12px; line-height:1.6;}
+  .badge{display:inline-block; background:var(--accent); color:#1a1505; font-weight:800; padding:3px 12px; border-radius:999px; font-size:13px;}
+  .edge-tag{
+    position:absolute; background:rgba(78,201,255,.92); color:#04222e; font-weight:800;
+    font-size:12px; padding:4px 9px; border-radius:8px; pointer-events:none; white-space:nowrap;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧊 1cm³와 1m³, 손으로 돌려보며 알아보기</h1>
+  <p>화면을 손가락으로 끌어 정육면체를 돌려보세요. 1cm³ 몇 개가 모여 1m³가 될까요?</p>
+</header>
+
+<div class="wrap">
+  <div class="steps" id="steps"></div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<script>
+/* ===================== 단계 ===================== */
+const steps = [
+  {key:"intro",   name:"① 1cm³ 만나기"},
+  {key:"build",   name:"② 차곡차곡 쌓기"},
+  {key:"full",    name:"③ 1m³ 한눈에"},
+  {key:"compare", name:"④ 크기 비교"},
+  {key:"quiz",    name:"⑤ 확인 퀴즈"},
+];
+let current = 0;
+const done = new Set();
+const stepsEl = document.getElementById("steps");
+const stage = document.getElementById("stage");
+
+function renderSteps(){
+  stepsEl.innerHTML = "";
+  steps.forEach((s,i)=>{
+    const c = document.createElement("div");
+    c.className = "step-chip" + (i===current?" active":"") + (done.has(i)?" done":"");
+    c.textContent = (done.has(i)&&i!==current ? "✓ " : "") + s.name;
+    c.onclick = ()=>{ current=i; render(); };
+    stepsEl.appendChild(c);
+  });
+}
+
+/* ===================== 공통: 드래그로 회전 ===================== */
+/* 어떤 .cube3d 든 부모 scene-box를 드래그하면 회전한다 */
+function enableDrag(sceneEl, cubeEl, state){
+  let dragging=false, lastX=0, lastY=0;
+  const apply=()=>{ cubeEl.style.transform =
+      `rotateX(${state.rx}deg) rotateY(${state.ry}deg)` + (state.scale?` scale(${state.scale})`:""); };
+  apply();
+  const down=e=>{ dragging=true; const p=pt(e); lastX=p.x; lastY=p.y; };
+  const move=e=>{
+    if(!dragging) return;
+    const p=pt(e); const dx=p.x-lastX, dy=p.y-lastY; lastX=p.x; lastY=p.y;
+    state.ry += dx*0.5; state.rx -= dy*0.5;
+    state.rx = Math.max(-89, Math.min(89, state.rx));
+    apply(); e.preventDefault();
+  };
+  const up=()=>{ dragging=false; };
+  const pt=e=> e.touches? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY};
+  sceneEl.addEventListener("mousedown",down); window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
+  sceneEl.addEventListener("touchstart",down,{passive:false}); sceneEl.addEventListener("touchmove",move,{passive:false}); window.addEventListener("touchend",up);
+  return apply;
+}
+
+/* ===================== 정육면체 만들기 ===================== */
+/* divisions: 한 변을 몇 칸으로 나눌지(격자). label: 윗면 글자 */
+function makeCube(size, divisions, label){
+  const half=size/2;
+  const wrap=document.createElement("div");
+  wrap.className="cube3d"; wrap.style.width=size+"px"; wrap.style.height=size+"px";
+  const cell = divisions? size/divisions : 0;
+  const faces=[
+    `rotateY(0deg) translateZ(${half}px)`,
+    `rotateY(180deg) translateZ(${half}px)`,
+    `rotateY(90deg) translateZ(${half}px)`,
+    `rotateY(-90deg) translateZ(${half}px)`,
+    `rotateX(90deg) translateZ(${half}px)`,
+    `rotateX(-90deg) translateZ(${half}px)`,
+  ];
+  faces.forEach((t,i)=>{
+    const el=document.createElement("div");
+    el.className="face"+(divisions?" gridface":"");
+    el.style.width=size+"px"; el.style.height=size+"px"; el.style.transform=t;
+    if(divisions){ el.style.backgroundSize=cell+"px "+cell+"px"; }
+    else{ el.style.background="rgba(255,122,89,.9)"; el.style.border="1px solid rgba(255,255,255,.35)"; }
+    if(i===4 && label){ el.textContent=label; el.style.fontSize=Math.max(13,size/9)+"px"; }
+    wrap.appendChild(el);
+  });
+  return wrap;
+}
+
+function sceneShell(id, floatLabel){
+  return `<div class="scene-box" id="${id}">
+      ${floatLabel?`<div class="label-float">${floatLabel}</div>`:""}
+      <div class="hint-drag">👆 끌어서 돌리기</div>
+    </div>`;
+}
+
+/* ===================== 렌더 ===================== */
+function render(){
+  renderSteps();
+  const r=steps[current].key;
+  ({intro:renderIntro, build:renderBuild, full:renderFull, compare:renderCompare, quiz:renderQuiz}[r])();
+  window.scrollTo({top:90,behavior:"smooth"});
+}
+function navHTML(){
+  return `<div class="nav">
+    <button class="btn ghost" onclick="prevStep()" ${current===0?"disabled":""}>← 이전</button>
+    <button class="btn blue" onclick="nextStep()" ${current===steps.length-1?"disabled":""}>다음 →</button>
+  </div>`;
+}
+function nextStep(){ done.add(current); if(current<steps.length-1)current++; render(); }
+function prevStep(){ if(current>0)current--; render(); }
+
+/* --- ① 1cm³ --- */
+function renderIntro(){
+  stage.innerHTML=`
+    <h2>① 1세제곱센티미터(1cm³) 만나기</h2>
+    <p class="lead">가로·세로·높이가 모두 <b>1cm</b>인 작은 정육면체의 부피가 <b style="color:var(--accent)">1cm³</b> 입니다.
+    각설탕 1개, 주사위 1개 정도예요. 화면을 손가락으로 끌어 돌려 보세요.</p>
+    ${sceneShell("introScene","한 변이 1cm 인 정육면체")}
+    <div class="factbar">
+      <div class="fact"><div class="n">1 cm</div><div class="t">한 변의 길이</div></div>
+      <div class="fact"><div class="n">6개</div><div class="t">정사각형 면</div></div>
+      <div class="fact"><div class="n">1 cm³</div><div class="t">부피</div></div>
+    </div>
+    ${navHTML()}`;
+  const scene=document.getElementById("introScene");
+  const cube=makeCube(170,0,"1cm³");
+  scene.appendChild(cube);
+  enableDrag(scene,cube,{rx:-22,ry:-30});
+}
+
+/* --- ② 차곡차곡 쌓기 (한 줄 → 한 층 → 1m³) --- */
+let buildPhase=0; // 0:한줄 1:한층 2:전체
+const phaseData=[
+  {div:1,  scaleNote:"가로 한 줄 = 1cm³ 100개", count:100,        sub:"가로로 100개 = 100cm = 1m"},
+  {div:1,  scaleNote:"한 층 = 100 × 100",       count:10000,      sub:"가로 100 × 세로 100 = 10,000개"},
+  {div:1,  scaleNote:"1m³ = 100 × 100 × 100",   count:1000000,    sub:"여기에 100층을 쌓으면!"},
+];
+function renderBuild(){
+  buildPhase=0;
+  stage.innerHTML=`
+    <h2>② 차곡차곡 쌓아 올리기</h2>
+    <p class="lead">1cm³를 <b>가로로 100개</b> → 다시 <b>세로로 100줄(한 층)</b> → 다시 <b>위로 100층</b> 쌓아 봅니다.
+    단계를 누를 때마다 개수가 어떻게 커지는지 보세요!</p>
+    <div class="scene-box" id="buildScene" style="touch-action:none;"></div>
+    <div class="counter">
+      <div class="big" id="buildCount">100</div>
+      <div class="sub" id="buildSub">가로로 100개 = 100cm = 1m</div>
+    </div>
+    <div class="controls">
+      <button class="btn ghost" onclick="setPhase(0)" id="pb0">한 줄 (100)</button>
+      <button class="btn ghost" onclick="setPhase(1)" id="pb1">한 층 (10,000)</button>
+      <button class="btn ghost" onclick="setPhase(2)" id="pb2">1m³ (1,000,000)</button>
+    </div>
+    ${navHTML()}`;
+  setPhase(0);
+}
+function setPhase(p){
+  buildPhase=p;
+  const scene=document.getElementById("buildScene");
+  scene.innerHTML="";
+  ["pb0","pb1","pb2"].forEach((id,i)=>{
+    const b=document.getElementById(id);
+    b.className="btn"+(i===p?"":" ghost");
+  });
+  let cube;
+  if(p===0){
+    // 가로 한 줄: 가로 100칸, 세로/높이 1칸 (납작한 막대)
+    cube=makeBar(320,28,28,100,1,1,"가로 100칸");
+  } else if(p===1){
+    // 한 층: 가로100 세로100 높이1
+    cube=makeBar(300,300,26,100,100,1,"100 × 100");
+  } else {
+    // 1m³: 100×100×100
+    cube=makeCube(300,100,"1m³");
+  }
+  scene.appendChild(cube);
+  const lbl=document.createElement("div"); lbl.className="label-float"; lbl.textContent=phaseData[p].scaleNote; scene.appendChild(lbl);
+  const hint=document.createElement("div"); hint.className="hint-drag"; hint.textContent="👆 끌어서 돌리기"; scene.appendChild(hint);
+  enableDrag(scene,cube,{rx:p===1?-55:-24, ry:-32});
+  animateCount("buildCount", phaseData[p].count);
+  document.getElementById("buildSub").textContent=phaseData[p].sub;
+}
+/* 직육면체: 픽셀 w,h,d + 격자칸 nx,ny,nz */
+function makeBar(w,h,d,nx,ny,nz,label){
+  const wrap=document.createElement("div"); wrap.className="cube3d";
+  wrap.style.width=w+"px"; wrap.style.height=h+"px";
+  const mk=(ww,hh,t,gx,gy,top)=>{
+    const el=document.createElement("div"); el.className="face gridface";
+    el.style.width=ww+"px"; el.style.height=hh+"px"; el.style.transform=t;
+    el.style.backgroundSize=(ww/gx)+"px "+(hh/gy)+"px";
+    if(top&&label){ el.textContent=label; el.style.color="#3a1206"; el.style.fontSize="15px"; }
+    return el;
+  };
+  // front/back (w×h, nx×ny)
+  wrap.appendChild(mk(w,h,`translateZ(${d/2}px)`,nx,ny));
+  wrap.appendChild(mk(w,h,`rotateY(180deg) translateZ(${d/2}px)`,nx,ny));
+  // right/left (d×h, nz×ny)
+  wrap.appendChild(mk(d,h,`rotateY(90deg) translateZ(${w/2}px) translateX(${(w-d)/2}px)`,Math.max(nz,1),ny));
+  wrap.appendChild(mk(d,h,`rotateY(-90deg) translateZ(${w/2}px) translateX(${-(w-d)/2}px)`,Math.max(nz,1),ny));
+  // top/bottom (w×d, nx×nz)
+  wrap.appendChild(mk(w,d,`rotateX(90deg) translateZ(${h/2}px) translateY(${(h-d)/2}px)`,nx,Math.max(nz,1),true));
+  wrap.appendChild(mk(w,d,`rotateX(-90deg) translateZ(${h/2}px) translateY(${-(h-d)/2}px)`,nx,Math.max(nz,1)));
+  return wrap;
+}
+let countTimer=null;
+function animateCount(id,target){
+  if(countTimer)clearInterval(countTimer);
+  const el=document.getElementById(id); let v=0;
+  const stepN=Math.ceil(target/30);
+  countTimer=setInterval(()=>{
+    v+=stepN; if(v>=target){v=target;clearInterval(countTimer);}
+    el.textContent=v.toLocaleString("ko-KR");
+  },25);
+}
+
+/* --- ③ 1m³ 한눈에 (100×100×100, 확대 보기) --- */
+let zoomed=false; let fullState={rx:-24,ry:-30,scale:1}; let fullApply=null;
+function renderFull(){
+  zoomed=false; fullState={rx:-24,ry:-30,scale:1};
+  stage.innerHTML=`
+    <h2>③ 1m³를 한눈에! — 1cm³ 100×100×100</h2>
+    <p class="lead">아래 큰 정육면체가 바로 <b style="color:var(--accent)">1m³</b> 입니다.
+    각 모서리가 <b>100칸</b>으로 나뉘어 있고, 그 칸 하나하나가 1cm³예요.
+    돌려보고, <b>확대</b>해서 작은 칸들을 직접 확인해 보세요.</p>
+    <div class="scene-box" id="fullScene">
+      <div class="label-float">한 변 = 1cm³ 100개 = 100cm = 1m</div>
+      <span class="edge-tag" id="tagX">↔ 가로 100개</span>
+      <span class="edge-tag" id="tagY">↕ 높이 100개</span>
+      <span class="edge-tag" id="tagZ">↗ 세로 100개</span>
+      <div class="hint-drag">👆 끌어서 돌리기</div>
+    </div>
+    <div class="counter">
+      <div class="big">1,000,000</div>
+      <div class="sub">1m³ 안에 들어가는 1cm³ 개수 (백만 개!)</div>
+    </div>
+    <div class="controls">
+      <button class="btn blue" onclick="toggleZoom()" id="zoomBtn">🔍 한 칸 확대해서 보기</button>
+      <button class="btn ghost" onclick="resetFull()">정면으로</button>
+    </div>
+    <div class="feedback ok show" style="text-align:center;margin-top:16px;">
+      💡 <b>100 × 100 × 100 = 1,000,000</b><br>그래서 <b>1m³ = 1,000,000 cm³</b> 입니다.
+    </div>
+    ${navHTML()}`;
+  const scene=document.getElementById("fullScene");
+  const cube=makeCube(300,100,"1m³");
+  scene.insertBefore(cube, scene.firstChild);
+  fullApply=enableDrag(scene,cube,fullState);
+  positionTags();
+}
+function positionTags(){
+  const x=document.getElementById("tagX"), y=document.getElementById("tagY"), z=document.getElementById("tagZ");
+  if(!x)return;
+  x.style.left="50%"; x.style.bottom="22%"; x.style.transform="translateX(-50%)";
+  y.style.left="14%"; y.style.top="50%"; y.style.transform="translateY(-50%)";
+  z.style.right="16%"; z.style.top="34%";
+}
+function toggleZoom(){
+  zoomed=!zoomed;
+  fullState.scale = zoomed? 2.6 : 1;
+  fullState.rx = zoomed? -18 : -24;
+  fullState.ry = zoomed? -28 : -30;
+  if(fullApply)fullApply();
+  document.getElementById("zoomBtn").textContent = zoomed? "🔭 전체 보기" : "🔍 한 칸 확대해서 보기";
+  const lbl=document.querySelector("#fullScene .label-float");
+  lbl.innerHTML = zoomed? "확대됨 — 작은 칸 <b>하나하나가 1cm³</b> 입니다" : "한 변 = 1cm³ 100개 = 100cm = 1m";
+}
+function resetFull(){
+  zoomed=false; fullState.scale=1; fullState.rx=-24; fullState.ry=-30;
+  if(fullApply)fullApply();
+  document.getElementById("zoomBtn").textContent="🔍 한 칸 확대해서 보기";
+}
+
+/* --- ④ 비교 --- */
+function renderCompare(){
+  stage.innerHTML=`
+    <h2>④ 크기 한눈에 비교하기</h2>
+    <p class="lead">같은 정육면체라도 1cm³와 1m³의 차이는 어마어마합니다.</p>
+    <div class="compare">
+      <div class="ccard">
+        <div class="title">🧊 1cm³</div>
+        <div class="swatch" style="background:rgba(255,122,89,.9);color:#3a1206;">각설탕 1개</div>
+        <div>한 변 <b>1cm</b></div>
+        <div style="color:var(--muted);font-size:13px;margin-top:6px;">손가락 한 마디</div>
+      </div>
+      <div class="ccard">
+        <div class="title">📦 1m³</div>
+        <div class="swatch" style="background:rgba(78,201,255,.85);color:#04222e;">세탁기·큰 상자</div>
+        <div>한 변 <b>100cm (1m)</b></div>
+        <div style="color:var(--muted);font-size:13px;margin-top:6px;">친구가 들어가 앉을 크기</div>
+      </div>
+    </div>
+    <div class="factbar" style="margin-top:20px;">
+      <div class="fact"><div class="n">×100</div><div class="t">한 변 길이</div></div>
+      <div class="fact"><div class="n">×10,000</div><div class="t">한 면 넓이</div></div>
+      <div class="fact"><div class="n">×1,000,000</div><div class="t">부피</div></div>
+    </div>
+    <div class="feedback ok show" style="text-align:center;margin-top:18px;">
+      💡 길이는 <b>100배</b>지만, 부피는 100을 세 번 곱해 <b>백만 배</b>!<br>
+      1m³ = 100 × 100 × 100 = <b>1,000,000 cm³</b>
+    </div>
+    <div class="hint">생각해보기: 1cm³ 각설탕 100만 개를 한 줄로 늘어놓으면? → 10,000m = <b>10km</b>!</div>
+    ${navHTML()}`;
+}
+
+/* --- ⑤ 퀴즈 --- */
+const quizData=[
+  {q:"1m는 몇 cm일까요?", opts:["10cm","100cm","1000cm"], a:1, exp:"1m = 100cm. 그래서 1m³의 한 변도 100cm예요."},
+  {q:"1cm³를 한 층(가로100×세로100)에 깔면 몇 개?", opts:["200개","10,000개","1,000개"], a:1, exp:"100 × 100 = 10,000개 입니다."},
+  {q:"1m³를 채우려면 1cm³가 모두 몇 개?", opts:["1,000개","100,000개","1,000,000개"], a:2, exp:"100×100×100 = 1,000,000개! 1m³ = 1,000,000cm³."},
+  {q:"한 변은 100배인데 부피는 왜 100만 배일까요?", opts:["길이를 세 번 곱해서","넓이가 100배라서","무게가 늘어서"], a:0, exp:"부피 = 가로×세로×높이 = 100×100×100 = 1,000,000!"},
+];
+let qi=0, score=0, answered=false;
+function renderQuiz(){
+  if(qi>=quizData.length){ return renderQuizDone(); }
+  const d=quizData[qi]; answered=false;
+  stage.innerHTML=`
+    <h2>⑤ 확인 퀴즈 <span class="badge">${qi+1} / ${quizData.length}</span></h2>
+    <div class="quiz-q">${d.q}</div>
+    <div class="opts" id="opts"></div>
+    <div class="feedback" id="qfb"></div>
+    <div class="nav">
+      <button class="btn ghost" onclick="prevStep()">← 단계로</button>
+      <button class="btn blue" id="qnext" style="display:none" onclick="nextQuiz()">다음 문제 →</button>
+    </div>`;
+  const wrap=document.getElementById("opts");
+  d.opts.forEach((o,i)=>{ const b=document.createElement("button"); b.className="opt"; b.textContent=o; b.onclick=()=>answer(i); wrap.appendChild(b); });
+}
+function answer(i){
+  if(answered)return; answered=true;
+  const d=quizData[qi];
+  document.querySelectorAll("#opts .opt").forEach((b,idx)=>{
+    if(idx===d.a)b.classList.add("correct");
+    if(idx===i&&i!==d.a)b.classList.add("wrong");
+  });
+  const fb=document.getElementById("qfb");
+  if(i===d.a){ score++; fb.className="feedback ok show"; fb.innerHTML="⭕ 정답! "+d.exp; }
+  else{ fb.className="feedback no show"; fb.innerHTML="❌ 아쉬워요. "+d.exp; }
+  document.getElementById("qnext").style.display="inline-block";
+}
+function nextQuiz(){ qi++; renderQuiz(); }
+function renderQuizDone(){
+  done.add(current);
+  stage.innerHTML=`
+    <h2>🎓 모두 마쳤어요!</h2>
+    <div class="counter"><div class="big">${score} / ${quizData.length}</div><div class="sub">맞힌 문제</div></div>
+    <div class="feedback ok show" style="text-align:center;margin-top:18px;">
+      오늘의 핵심<br>✔ 1m = 100cm<br>✔ 1m³ = 100 × 100 × 100 = <b>1,000,000 cm³</b><br>✔ 길이는 100배, 부피는 <b>백만 배</b>!
+    </div>
+    <div class="controls">
+      <button class="btn" onclick="qi=0;score=0;renderQuiz()">🔁 퀴즈 다시</button>
+      <button class="btn blue" onclick="current=0;render()">처음으로</button>
+    </div>`;
+  renderSteps();
+}
+
+render();
+</script>
+</body>
+</html>
