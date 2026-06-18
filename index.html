@@ -272,64 +272,133 @@ function renderIntro(){
   enableDrag(scene,cube,{rx:-22,ry:-30});
 }
 
-/* --- ② 차곡차곡 쌓기 (한 줄 → 한 층 → 1m³) --- */
-let buildPhase=0; // 0:한줄 1:한층 2:전체
-const phaseData=[
-  {div:1,  scaleNote:"가로 한 줄 = 1cm³ 100개", count:100,        sub:"가로로 100개 = 100cm = 1m"},
-  {div:1,  scaleNote:"한 층 = 100 × 100",       count:10000,      sub:"가로 100 × 세로 100 = 10,000개"},
-  {div:1,  scaleNote:"1m³ = 100 × 100 × 100",   count:1000000,    sub:"여기에 100층을 쌓으면!"},
+/* --- ② 차곡차곡 쌓기 (한 줄 → 한 층 → 1m³) : 연속 성장 애니메이션 --- */
+let buildPhase=0;
+const BUILD_UNIT=3; // 1cm³ 한 칸 = 3px (모든 단계 공통 → 연속적으로 자람)
+// 각 단계 목표: nx(가로)·ny(높이)·nz(세로) 칸 수 + 카메라 각도 + 윗면 글자 + 설명
+const buildTargets=[
+  {nx:100, ny:1,   nz:1,   rx:-22, ry:-32, label:"",                  scaleNote:"가로 한 줄 = 1cm³ 100개", sub:"가로로 1cm³ 100개 = 100cm = 1m"},
+  {nx:100, ny:1,   nz:100, rx:-58, ry:-26, label:"가로 100 × 세로 100", scaleNote:"한 층 = 100 × 100",       sub:"한 줄(100개)이 100줄 → 한 층 10,000개"},
+  {nx:100, ny:100, nz:100, rx:-20, ry:-32, label:"1m³",               scaleNote:"1m³ = 100 × 100 × 100",   sub:"한 층(10,000개)이 100층 → 1m³ 1,000,000개"},
 ];
+let buildCubeEl=null, buildApply=null, buildState=null, buildAnim=null;
+let buildDims={nx:1,ny:1,nz:1};
+
 function renderBuild(){
   buildPhase=0;
+  if(buildAnim) cancelAnimationFrame(buildAnim);
   stage.innerHTML=`
     <h2>② 차곡차곡 쌓아 올리기</h2>
-    <p class="lead">1cm³를 <b>가로로 100개</b> → 다시 <b>세로로 100줄(한 층)</b> → 다시 <b>위로 100층</b> 쌓아 봅니다.
-    단계를 누를 때마다 개수가 어떻게 커지는지 보세요!</p>
+    <p class="lead">1cm³를 <b>가로로 100개</b> → 다시 <b>세로로 100줄(한 층)</b> → 다시 <b>위로 100층</b> 쌓습니다.
+    버튼을 누르면 <b>촥촥촥 자라나는 과정</b>이 보여요!</p>
     <div class="scene-box" id="buildScene" style="touch-action:none;"></div>
     <div class="counter">
-      <div class="big" id="buildCount">100</div>
-      <div class="sub" id="buildSub">가로로 100개 = 100cm = 1m</div>
+      <div class="big" id="buildCount">0</div>
+      <div class="sub" id="buildSub">버튼을 눌러 쌓아 보세요</div>
     </div>
     <div class="controls">
-      <button class="btn ghost" onclick="setPhase(0)" id="pb0">한 줄 (100)</button>
-      <button class="btn ghost" onclick="setPhase(1)" id="pb1">한 층 (10,000)</button>
-      <button class="btn ghost" onclick="setPhase(2)" id="pb2">1m³ (1,000,000)</button>
+      <button class="btn ghost" onclick="animatePhase(0)" id="pb0">한 줄 (100)</button>
+      <button class="btn ghost" onclick="animatePhase(1)" id="pb1">한 층 (10,000)</button>
+      <button class="btn ghost" onclick="animatePhase(2)" id="pb2">1m³ (1,000,000)</button>
+      <button class="btn blue" onclick="buildPlayAll()">▶ 처음부터 차례로</button>
     </div>
     ${navHTML()}`;
-  setPhase(0);
-}
-function setPhase(p){
-  buildPhase=p;
   const scene=document.getElementById("buildScene");
-  scene.innerHTML="";
-  ["pb0","pb1","pb2"].forEach((id,i)=>{
-    const b=document.getElementById(id);
-    b.className="btn"+(i===p?"":" ghost");
-  });
-  let cube, viewRx;
-  if(p===0){
-    // 가로 한 줄: 가로 100칸 × 높이1 × 세로1 (1cm³ 한 칸 = 6px)
-    cube=makeBar(6,100,1,1,"");
-    viewRx=-22;
-  } else if(p===1){
-    // 한 층: 가로100 × 세로100 × 높이1 (1cm³ 한 칸 = 3px, 바닥 판을 위에서 내려다봄)
-    cube=makeBar(3,100,1,100,"가로 100 × 세로 100");
-    viewRx=-60;
-  } else {
-    // 1m³: 100×100×100
-    cube=makeCube(300,100,"1m³");
-    viewRx=-24;
-  }
-  scene.appendChild(cube);
-  const lbl=document.createElement("div"); lbl.className="label-float"; lbl.textContent=phaseData[p].scaleNote; scene.appendChild(lbl);
+  buildCubeEl=document.createElement("div"); buildCubeEl.className="cube3d"; buildCubeEl.style.position="relative";
+  scene.appendChild(buildCubeEl);
   const hint=document.createElement("div"); hint.className="hint-drag"; hint.textContent="👆 끌어 돌리기 · 🔍 휠/두 손가락 확대"; scene.appendChild(hint);
-  // 가로·세로·높이를 한눈에 비교할 수 있는 축 라벨
+  buildState={rx:-22, ry:-32, scale:1};
+  buildApply=enableDrag(scene, buildCubeEl, buildState);
+  buildDims={nx:1,ny:1,nz:1};
+  fillBar(BUILD_UNIT,1,1,1,"");
+  // 첫 진입 시 한 줄을 자동으로 한 번 쌓아 보여준다
+  setTimeout(()=>animatePhase(0), 250);
+}
+
+/* 같은 cube 요소에 6개 면을 다시 채워 넣는다(요소 자체는 유지 → 드래그/줌 래퍼 보존) */
+function fillBar(unit,nx,ny,nz,label){
+  const el=buildCubeEl; if(!el) return;
+  const w=nx*unit, h=ny*unit, d=nz*unit;
+  el.style.width=w+"px"; el.style.height=h+"px";
+  el.innerHTML="";
+  const mk=(ww,hh,t,isTop)=>{
+    const f=document.createElement("div"); f.className="face gridface";
+    f.style.position="absolute"; f.style.left="50%"; f.style.top="50%";
+    f.style.width=ww+"px"; f.style.height=hh+"px";
+    f.style.marginLeft=(-ww/2)+"px"; f.style.marginTop=(-hh/2)+"px";
+    f.style.transform=t;
+    f.style.backgroundSize=unit+"px "+unit+"px";   // 모든 칸을 정사각형으로
+    if(isTop&&label){ f.textContent=label; f.style.color="#3a1206"; f.style.fontSize="15px"; }
+    return f;
+  };
+  el.appendChild(mk(w,h,`translateZ(${d/2}px)`));
+  el.appendChild(mk(w,h,`rotateY(180deg) translateZ(${d/2}px)`));
+  el.appendChild(mk(d,h,`rotateY(90deg) translateZ(${w/2}px)`));
+  el.appendChild(mk(d,h,`rotateY(-90deg) translateZ(${w/2}px)`));
+  el.appendChild(mk(w,d,`rotateX(90deg) translateZ(${h/2}px)`,true));
+  el.appendChild(mk(w,d,`rotateX(-90deg) translateZ(${h/2}px)`));
+}
+
+/* 단계별로 "이전 단계는 완성된 상태"에서 새 방향만 1→100으로 자라게 한다.
+   p0: 가로(nx) 1→100  /  p1: 세로줄(nz) 1→100 (가로는 이미 100)  /  p2: 층(ny) 1→100 (가로·세로 이미 100) */
+function animatePhase(p){
+  if(!buildCubeEl) return;
+  if(buildAnim) cancelAnimationFrame(buildAnim);
+  buildPhase=p;
+  ["pb0","pb1","pb2"].forEach((id,i)=>{ const b=document.getElementById(id); if(b) b.className="btn"+(i===p?"":" ghost"); });
+  const tg=buildTargets[p];
+  // 고정 dims(이전 단계 완성분) + 자라는 축
+  let fixed, growAxis;
+  if(p===0){ fixed={nx:1, ny:1, nz:1}; growAxis="nx"; }
+  else if(p===1){ fixed={nx:100, ny:1, nz:1}; growAxis="nz"; }
+  else { fixed={nx:100, ny:1, nz:100}; growAxis="ny"; }
+  buildDims={...fixed};
+  const startRx=buildState.rx, startRy=buildState.ry;
+  refreshBuildTags(p);
+  ensureFloatLabel().textContent=tg.scaleNote;
+  document.getElementById("buildSub").textContent=tg.sub;
+  const t0=performance.now(), dur=1400;
+  const ease=k=> k<.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2; // easeInOutQuad
+  const tick=(now)=>{
+    const k=Math.min(1,(now-t0)/dur), e=ease(k);
+    const grown=Math.max(1,Math.round(1+(100-1)*e));
+    const dims={...fixed}; dims[growAxis]=grown;
+    buildDims=dims;
+    fillBar(BUILD_UNIT, dims.nx, dims.ny, dims.nz, k>0.9?tg.label:"");
+    buildState.rx=startRx+(tg.rx-startRx)*e;
+    buildState.ry=startRy+(tg.ry-startRy)*e;
+    buildApply();
+    document.getElementById("buildCount").textContent=(dims.nx*dims.ny*dims.nz).toLocaleString("ko-KR");
+    if(k<1) buildAnim=requestAnimationFrame(tick);
+  };
+  buildAnim=requestAnimationFrame(tick);
+}
+
+/* 처음(1×1×1)부터 한 줄 → 한 층 → 1m³ 까지 자동 재생 */
+let buildPlayTimers=[];
+function buildPlayAll(){
+  buildPlayTimers.forEach(clearTimeout); buildPlayTimers=[];
+  if(buildAnim) cancelAnimationFrame(buildAnim);
+  buildDims={nx:1,ny:1,nz:1};
+  buildState.rx=-22; buildState.ry=-32; buildApply();
+  fillBar(BUILD_UNIT,1,1,1,"");
+  animatePhase(0);
+  buildPlayTimers.push(setTimeout(()=>animatePhase(1),1700));
+  buildPlayTimers.push(setTimeout(()=>animatePhase(2),3500));
+}
+
+function ensureFloatLabel(){
+  const scene=document.getElementById("buildScene");
+  let lbl=scene.querySelector(".label-float");
+  if(!lbl){ lbl=document.createElement("div"); lbl.className="label-float"; scene.appendChild(lbl); }
+  return lbl;
+}
+function refreshBuildTags(p){
+  const scene=document.getElementById("buildScene");
+  scene.querySelectorAll(".edge-tag").forEach(t=>t.remove());
   addAxisTag(scene,"↔ 가로 100개","bottom");
   if(p>=1) addAxisTag(scene,"↕ 세로 100개","left");
   if(p>=2) addAxisTag(scene,"⬆ 높이 100개","right");
-  enableDrag(scene,cube,{rx:viewRx, ry:p===1?-26:-32});
-  animateCount("buildCount", phaseData[p].count);
-  document.getElementById("buildSub").textContent=phaseData[p].sub;
 }
 /* 무대 가장자리에 가로/세로/높이 방향 라벨을 붙인다 */
 function addAxisTag(scene, text, pos){
@@ -338,30 +407,6 @@ function addAxisTag(scene, text, pos){
   if(pos==="left"){ t.style.left="9%"; t.style.top="46%"; t.style.transform="translateY(-50%) rotate(-90deg)"; t.style.background="rgba(255,211,78,.95)"; }
   if(pos==="right"){ t.style.right="9%"; t.style.top="40%"; t.style.background="rgba(95,224,138,.95)"; }
   scene.appendChild(t);
-}
-/* 직육면체: unit=1cm³ 한 칸의 픽셀 크기, nx·ny·nz=각 방향 칸 수.
-   모든 면의 격자 칸을 unit×unit 정사각형으로 그리고, 각 면을 중앙 정렬해 빈틈 없이 맞춘다. */
-function makeBar(unit,nx,ny,nz,label){
-  const w=nx*unit, h=ny*unit, d=nz*unit;
-  const wrap=document.createElement("div"); wrap.className="cube3d";
-  wrap.style.width=w+"px"; wrap.style.height=h+"px"; wrap.style.position="relative";
-  const mk=(ww,hh,t,isTop)=>{
-    const el=document.createElement("div"); el.className="face gridface";
-    el.style.position="absolute"; el.style.left="50%"; el.style.top="50%";
-    el.style.width=ww+"px"; el.style.height=hh+"px";
-    el.style.marginLeft=(-ww/2)+"px"; el.style.marginTop=(-hh/2)+"px";
-    el.style.transform=t;
-    el.style.backgroundSize=unit+"px "+unit+"px";   // 모든 칸을 정사각형으로
-    if(isTop&&label){ el.textContent=label; el.style.color="#3a1206"; el.style.fontSize="15px"; }
-    return el;
-  };
-  wrap.appendChild(mk(w,h,`translateZ(${d/2}px)`));                 // 앞
-  wrap.appendChild(mk(w,h,`rotateY(180deg) translateZ(${d/2}px)`)); // 뒤
-  wrap.appendChild(mk(d,h,`rotateY(90deg) translateZ(${w/2}px)`));  // 오른쪽
-  wrap.appendChild(mk(d,h,`rotateY(-90deg) translateZ(${w/2}px)`)); // 왼쪽
-  wrap.appendChild(mk(w,d,`rotateX(90deg) translateZ(${h/2}px)`,true)); // 위
-  wrap.appendChild(mk(w,d,`rotateX(-90deg) translateZ(${h/2}px)`));     // 아래
-  return wrap;
 }
 let countTimer=null;
 function animateCount(id,target){
